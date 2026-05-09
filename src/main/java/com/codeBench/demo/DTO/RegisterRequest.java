@@ -13,6 +13,10 @@ public class RegisterRequest {
     @Size(min = 3, max = 20)
     private String username;
 
+    public String getEmail() {
+        return email;
+    }
+
     @Email
     @NotBlank
     private String email;
@@ -20,4 +24,12 @@ public class RegisterRequest {
     @NotBlank
     @Size(min = 6)
     private String password;
+
+    public String getPassword() {
+        return password;
+    }
+
+    public String getUsername() {
+        return username;
+    }
 }

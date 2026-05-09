@@ -38,7 +38,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest registerRequest){
-        return ResponseEntity.ok(authService.register(registerRequest));
+        return authService.register(registerRequest);
     }
 
     @PostMapping("/refresh")
@@ -52,6 +52,13 @@ public class AuthController {
 
         authService.logout(request.get("refreshToken"));
         return ResponseEntity.ok("Logged out");
+    }
+
+
+
+    @GetMapping("/verify")
+    public String verify(@RequestParam String token) {
+       return authService.verify(token);
     }
 
 }

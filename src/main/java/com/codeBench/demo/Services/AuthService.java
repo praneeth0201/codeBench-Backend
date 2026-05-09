@@ -11,19 +11,24 @@ import com.codeBench.demo.Entity.RefreshToken;
 import com.codeBench.demo.Entity.Role;
 import com.codeBench.demo.Entity.User;
 import com.codeBench.demo.Security.JWTUtil;
+import jakarta.mail.MessagingException;
 import jakarta.transaction.Transactional;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.security.authentication.DisabledException;
 
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -36,91 +41,163 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JWTUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+    private final EmailService emailService;
+    private final SimpMessagingTemplate messagingTemplate;
+
     public AuthService(UserDao userDao,
                        RoleRepository roleRepository,
                        PasswordEncoder passwordEncoder,
                        JWTUtil jwtUtil,
                        RefreshTokenRepository refreshTokenRepository,
-                       AuthenticationManager authenticationManager) {
+                       AuthenticationManager authenticationManager,
+                       EmailService emailService,
+                       SimpMessagingTemplate messagingTemplate) {
         this.userDao = userDao;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil=jwtUtil;
         this.refreshTokenRepository=refreshTokenRepository;
         this.authenticationManager=authenticationManager;
+        this.emailService=emailService;
+        this.messagingTemplate=messagingTemplate;
     }
 
-    public LoginResponse register(RegisterRequest request) {
-
+    public ResponseEntity<?> register(RegisterRequest request) {
 
         if (userDao.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("Username already exists");
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("message", "Username already exists"));
         }
-
 
         if (userDao.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("message", "Email already exists"));
         }
 
-
         String encodedPassword = passwordEncoder.encode(request.getPassword());
-        Role role=new Role((long)1,"ROLE_USER");
-
-
+        Role role = new Role((long) 1, "ROLE_USER");
 
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(encodedPassword)
-                .enabled(true)
+                .enabled(false)
                 .roles(Set.of(role))
                 .build();
-
+        String token = UUID.randomUUID().toString();
+        String verificationSessionId=UUID.randomUUID().toString();
+        user.setVerificationToken(token);
+        user.setVerificationSessionId(verificationSessionId);
 
         userDao.save(user);
 
-        List<String> roles = user.getRoles()
-                .stream()
-                .map(r -> r.getRole())
-                .toList();
+        try {
 
-        String accessToken = jwtUtil.generateToken(user.getUsername(), roles);
-        RefreshToken refreshToken=createRefreshToken(user.getUsername());
+            emailService.sendVerificationEmail(
+                    user.getEmail(),
+                    token
+            );
 
-        return new LoginResponse(
-                "User registered successfully",
-                user.getUsername(),
-                accessToken,
-                refreshToken.getToken()
-        );
+        } catch (MessagingException e) {
+
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .status(500)
+                    .body(Map.of(
+                            "message",
+                            "Failed to send email"
+                    ));
+        }
+        return ResponseEntity.ok(Map.of("message","Registration successful. Please verify your email.","verificationSessionId",verificationSessionId));
     }
     @Transactional
     public ResponseEntity<?> authorize(@RequestBody LoginRequest request) {
-        refreshTokenRepository.deleteByUsername(request.getUserName());
-
         try {
-            Authentication status = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.getUserName(),
-                            request.getPassword()
-                    )
+
+
+
+            Authentication authentication =
+                    authenticationManager.authenticate(
+                            new UsernamePasswordAuthenticationToken(
+                                    request.getUserName(),
+                                    request.getPassword()
+                            )
+                    );
+
+
+
+            refreshTokenRepository.deleteByUsername(
+                    request.getUserName()
             );
 
 
-            String userName = status.getName();
 
-            List<String> roles = status.getAuthorities()
-                    .stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .toList();
+            String username = authentication.getName();
 
-            String accessToken = jwtUtil.generateToken(userName, roles);
-            RefreshToken refreshToken = createRefreshToken(userName);
-            return ResponseEntity.ok(new LoginResponse("Login Successfull", userName, accessToken,refreshToken.getToken()));
+
+
+            List<String> roles =
+                    authentication.getAuthorities()
+                            .stream()
+                            .map(GrantedAuthority::getAuthority)
+                            .toList();
+
+
+            String accessToken =
+                    jwtUtil.generateToken(
+                            username,
+                            roles
+                    );
+
+
+
+            RefreshToken refreshToken =
+                    createRefreshToken(username);
+
+            return ResponseEntity.ok(
+                    new LoginResponse(
+                            "Login Successful",
+                            username,
+                            accessToken,
+                            refreshToken.getToken()
+                    )
+            );
+
+        } catch (DisabledException e) {
+
+
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of(
+                            "message",
+                            "Please verify your email first"
+                    ));
+
+        } catch (BadCredentialsException e) {
+
+            // WRONG USERNAME OR PASSWORD
+
+            return ResponseEntity
+                    .status(401)
+                    .body(Map.of(
+                            "message",
+                            "Invalid username or password"
+                    ));
 
         } catch (Exception e) {
+
             e.printStackTrace();
-            return ResponseEntity.status(401).body("Authentication Failed: " + e.getMessage());
+
+            return ResponseEntity
+                    .status(500)
+                    .body(Map.of(
+                            "message",
+                            "Something went wrong"
+                    ));
         }
 
     }
@@ -169,5 +246,50 @@ public class AuthService {
         token.setRevoked(false);
 
         return refreshTokenRepository.save(token);
+    }
+
+    public String verify(String token){
+        User user = userDao.findByVerificationToken(token)
+                .orElseThrow(() ->
+                        new RuntimeException("Invalid token"));
+
+        user.setEnabled(true);
+
+        user.setVerificationToken(null);
+
+        userDao.save(user);
+
+        List<String> roles = user.getRoles()
+                .stream()
+                .map(role -> role.getRole())
+                .toList();
+
+        String accessToken =
+                jwtUtil.generateToken(
+                        user.getUsername(),
+                        roles
+                );
+
+        RefreshToken refreshToken =
+                createRefreshToken(user.getUsername());
+
+        LoginResponse response = new LoginResponse(
+                "Login successful",
+                user.getUsername(),
+                accessToken,
+                refreshToken.getToken()
+        );
+
+        messagingTemplate.convertAndSend(
+                "/topic/verification/" +
+                        user.getVerificationSessionId(),
+                response
+        );
+
+        user.setVerificationSessionId(null);
+
+        userDao.save(user);
+
+        return "Email verified successfully";
     }
 }
