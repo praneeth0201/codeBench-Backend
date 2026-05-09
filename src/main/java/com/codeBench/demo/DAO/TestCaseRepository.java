@@ -1,0 +1,13 @@
+package com.codeBench.demo.DAO;
+
+import com.codeBench.demo.Entity.TestCase;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface TestCaseRepository extends JpaRepository<TestCase, Long> {
+
+    List<TestCase> findByProblemId(Long problemId);
+}
