@@ -1,6 +1,7 @@
 package com.codeBench.demo.DAO;
 
 import com.codeBench.demo.Entity.Submission;
+import com.codeBench.demo.Entity.Verdict;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -13,10 +14,14 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
             String username, Long problemId
     );
 
-    List<Submission> findByUsernameAndStatusOrderByCreatedAtDesc(
+    Submission findFirstByUsernameAndProblemIdOrderByCreatedAtDesc(String username, Long problemId);
+
+    List<Submission> findByUsernameAndVerdictOrderByCreatedAtDesc(
             String username,
-            String status
+            Verdict verdict
     );
+
+    boolean existsByUsernameAndProblemIdAndVerdict(String username, Long problemId, Verdict verdict);
 }
 
 

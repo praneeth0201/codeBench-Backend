@@ -20,7 +20,27 @@ public class Submission {
 
     private String language;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private SubmissionStatus status;
+
+    @Enumerated(EnumType.STRING)
+    private Verdict verdict;
+
+    private Integer passedTestCases;
+    private Integer totalTestCases;
+    private Long memoryUsed;
+
+    @Column(columnDefinition = "TEXT")
+    private String failedInput;
+
+    @Column(columnDefinition = "TEXT")
+    private String expectedOutput;
+
+    @Column(columnDefinition = "TEXT")
+    private String actualOutput;
+
+    @Column(columnDefinition = "TEXT")
+    private String compileError;
 
     @Column(columnDefinition = "TEXT")
     private String output;
@@ -43,8 +63,24 @@ public class Submission {
     public void setCode(String code) { this.code = code; }
     public String getLanguage() { return language; }
     public void setLanguage(String language) { this.language = language; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public SubmissionStatus getStatus() { return status; }
+    public void setStatus(SubmissionStatus status) { this.status = status; }
+    public Verdict getVerdict() { return verdict; }
+    public void setVerdict(Verdict verdict) { this.verdict = verdict; }
+    public Integer getPassedTestCases() { return passedTestCases; }
+    public void setPassedTestCases(Integer passedTestCases) { this.passedTestCases = passedTestCases; }
+    public Integer getTotalTestCases() { return totalTestCases; }
+    public void setTotalTestCases(Integer totalTestCases) { this.totalTestCases = totalTestCases; }
+    public Long getMemoryUsed() { return memoryUsed; }
+    public void setMemoryUsed(Long memoryUsed) { this.memoryUsed = memoryUsed; }
+    public String getFailedInput() { return failedInput; }
+    public void setFailedInput(String failedInput) { this.failedInput = failedInput; }
+    public String getExpectedOutput() { return expectedOutput; }
+    public void setExpectedOutput(String expectedOutput) { this.expectedOutput = expectedOutput; }
+    public String getActualOutput() { return actualOutput; }
+    public void setActualOutput(String actualOutput) { this.actualOutput = actualOutput; }
+    public String getCompileError() { return compileError; }
+    public void setCompileError(String compileError) { this.compileError = compileError; }
     public String getOutput() { return output; }
     public void setOutput(String output) { this.output = output; }
     public Long getExecutionTime() { return executionTime; }

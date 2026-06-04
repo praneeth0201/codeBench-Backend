@@ -7,11 +7,10 @@ import lombok.Getter;
 public class SubmissionRequest {
 
     private Long problemId;
-
-
-
     private String code;
     private String language;
+
+
 
     public Long getProblemId() {
         return problemId;

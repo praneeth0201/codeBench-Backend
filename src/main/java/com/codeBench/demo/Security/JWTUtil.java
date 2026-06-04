@@ -17,7 +17,7 @@ public class JWTUtil {
     private static final String SECRET = "mysecretkeymysecretkeymysecretkey12345";
 
     private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
-    private final long jwtExpirationMs= 1000*60*30;
+    private final long jwtExpirationMs= 1000*60*60*3;
 
     public String generateToken(String userName, List<String> roles){
         return Jwts.builder()

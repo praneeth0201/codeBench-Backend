@@ -1,5 +1,6 @@
 package com.codeBench.demo.Security;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,60 +20,104 @@ import java.util.stream.Collectors;
 @Component
 public class JWTFilter extends OncePerRequestFilter {
 
-    JWTUtil jwtUtil;
-    public JWTFilter(JWTUtil jwtUtil){
-        this.jwtUtil=jwtUtil;
+    private final JWTUtil jwtUtil;
+
+    public JWTFilter(JWTUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
     }
+
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String path = request.getRequestURI();
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
-        if (path.startsWith("/api/auth")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+        try {
 
-        final String authHeader=request.getHeader("Authorization");
+            String path = request.getRequestURI();
 
-        String userName=null;
-        String token=null;
-
-        if(authHeader!=null && authHeader.startsWith("Bearer ")){
-            token=authHeader.substring(7);
-            userName=jwtUtil.extractUserName(token);
-
-        }
-
-        if(userName!=null && SecurityContextHolder.getContext().getAuthentication()==null){
-
-            if(jwtUtil.validateToken(token)){
-                List<String> roles=jwtUtil.extractRoles(token);
-
-                Set<GrantedAuthority> authorities=roles
-                        .stream()
-                        .map(role -> new SimpleGrantedAuthority(role))
-                        .collect(Collectors.toSet());
-
-
-
-
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userName,
-                                null,
-                                authorities
-                        );
-
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-
+            if (path.startsWith("/api/auth")) {
+                filterChain.doFilter(request, response);
+                return;
             }
 
+            final String authHeader =
+                    request.getHeader("Authorization");
 
+            String userName = null;
+            String token = null;
 
+            if (authHeader != null &&
+                    authHeader.startsWith("Bearer ")) {
+
+                token = authHeader.substring(7);
+
+                userName =
+                        jwtUtil.extractUserName(token);
+            }
+
+            if (userName != null &&
+                    SecurityContextHolder
+                            .getContext()
+                            .getAuthentication() == null) {
+
+                if (jwtUtil.validateToken(token)) {
+
+                    List<String> roles =
+                            jwtUtil.extractRoles(token);
+
+                    Set<GrantedAuthority> authorities =
+                            roles.stream()
+                                    .map(SimpleGrantedAuthority::new)
+                                    .collect(Collectors.toSet());
+
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userName,
+                                    null,
+                                    authorities
+                            );
+
+                    SecurityContextHolder
+                            .getContext()
+                            .setAuthentication(authentication);
+                }
+            }
+
+            filterChain.doFilter(request, response);
+
+        } catch (ExpiredJwtException e) {
+
+            response.setStatus(
+                    HttpServletResponse.SC_UNAUTHORIZED
+            );
+
+            response.setContentType("application/json");
+
+            response.getWriter().write("""
+                {
+                  "message": "Access token expired"
+                }
+            """);
+
+            return;
+
+        } catch (Exception e) {
+
+            response.setStatus(
+                    HttpServletResponse.SC_UNAUTHORIZED
+            );
+
+            response.setContentType("application/json");
+
+            response.getWriter().write("""
+                {
+                  "message": "Invalid token"
+                }
+            """);
+
+            return;
         }
-        filterChain.doFilter(request,response);
-
-
     }
 }

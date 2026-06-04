@@ -144,7 +144,7 @@ public class AuthService {
                             .stream()
                             .map(GrantedAuthority::getAuthority)
                             .toList();
-
+            System.out.println(roles);
 
             String accessToken =
                     jwtUtil.generateToken(
